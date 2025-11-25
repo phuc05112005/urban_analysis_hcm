@@ -16,7 +16,7 @@ import json
 
 # ================== CẤU HÌNH ==================
 
-BASE_DIR = os.path.dirname(os.path.abspath(**file**))
+BASE_DIR = os.path.dirname(os.path.abspath(_file_))
 SHP_ZIP = os.path.join(BASE_DIR, "vn_shp.zip")  # file zip shapefile
 SHP_DIR = os.path.join(BASE_DIR, "vn_shp")     # thư mục giải nén
 
@@ -314,3 +314,4 @@ for i, year in enumerate([year1, year2]):
         m.addLayerControl()
         m.to_streamlit()
 ```
+
