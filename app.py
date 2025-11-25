@@ -15,7 +15,7 @@ import json
 # ================== CẤU HÌNH ==================
 import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-shp_path = os.path.join(BASE_DIR, "vn_shp", "tên_file.shp")
+shp_path = os.path.join(BASE_DIR, "vn_shp", "vn.shp")
 
 # ================== GOOGLE EARTH ENGINE ==================
 # Load key từ Streamlit secrets
