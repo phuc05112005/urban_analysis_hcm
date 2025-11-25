@@ -14,7 +14,7 @@ import json
 
 # ================== CẤU HÌNH ==================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SHP_DIR = os.path.join(BASE_DIR, "vn_shp")
+SHP_DIR = os.path.join(BASE_DIR, "vn_shp/vn.shp")
 
 # ================== GOOGLE EARTH ENGINE ==================
 # Load key từ Streamlit secrets
@@ -290,3 +290,4 @@ if st.button("🚀 Bắt đầu phân tích", use_container_width=True):
             m.addLayer(roi_fc, {}, "Ranh giới")
             m.addLayerControl()
             m.to_streamlit()
+
