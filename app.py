@@ -1,11 +1,9 @@
 # app.py
-
 import os
 import glob
 import unicodedata
 import math
 import tempfile
-import zipfile
 from pathlib import Path
 
 import streamlit as st
@@ -15,52 +13,11 @@ from geemap import foliumap
 import json
 
 # ================== CẤU HÌNH ==================
-
-# ================== CẤU HÌNH ==================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# giả sử bạn vẫn giữ tại root của repo
-SHP_URL = "https://raw.githubusercontent.com/phuc05112005/urban_analysis_hcm/main/vn_shp/vn.shp"
-
-@st.cache_data(show_spinner=False)
-def load_shapefile():
-    # tải trực tiếp file .shp từ GitHub
-    import requests
-    from io import BytesIO
-    url = SHP_URL
-    resp = requests.get(url)
-    if resp.status_code != 200:
-        raise FileNotFoundError(f"Không tải được shapefile từ {url}")
-    # ghi tạm vào file
-    temp_dir = tempfile.mkdtemp()
-    shp_path = os.path.join(temp_dir, "vn.shp")
-    with open(shp_path, "wb") as f:
-        f.write(resp.content)
-    gdf = gpd.read_file(shp_path)
-    if gdf.crs is None:
-        gdf.set_crs(epsg=4326, inplace=True)
-    else:
-        gdf = gdf.to_crs(4326)
-    # phần còn lại giữ như cũ:
-    cols_lower = [c.lower() for c in gdf.columns]
-    preferred = ["name","ten_tinh","tinh","ten","province"]
-    name_field = None
-    for k in preferred:
-        if k in cols_lower:
-            name_field = gdf.columns[cols_lower.index(k)]
-            break
-    if not name_field:
-        text_cols = [c for c in gdf.columns if gdf[c].dtype == object]
-        if not text_cols:
-            raise ValueError("Không tìm thấy trường tên trong shapefile")
-        name_field = text_cols[0]
-    sample = str(gdf[name_field].iloc[0])
-    if any(x in sample for x in ["Ã","Â","ê°","àº","»"]):
-        gdf[name_field] = gdf[name_field].apply(_fix_mojibake_utf8)
-    gdf[name_field] = gdf[name_field].apply(lambda s: unicodedata.normalize("NFC", s) if isinstance(s, str) else s)
-    return gdf, name_field
+SHP_DIR = os.path.join(BASE_DIR, "vn_shp")
 
 # ================== GOOGLE EARTH ENGINE ==================
-
+# Load key từ Streamlit secrets
 gee_key_json = st.secrets["GEE_KEY"]
 with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as f:
     f.write(gee_key_json)
@@ -82,7 +39,6 @@ def init_ee(key_path):
 init_ee(SERVICE_ACCOUNT_FILE)
 
 # ================== PRESET ==================
-
 PRESET_MEM = {
     "ui_percentile": 60,
     "ndvi_max": 0.60,
@@ -92,7 +48,6 @@ PRESET_MEM = {
 }
 
 # ================== SENTINEL-2 ==================
-
 def s2_mask(img):
     scl = img.select("SCL")
     mask = scl.neq(3).And(scl.neq(8)).And(scl.neq(9)).And(scl.neq(10)).And(scl.neq(11))
@@ -113,7 +68,6 @@ def get_s2_image(roi_geojson, year, cloud_thresh=40):
     )
 
 # ================== CHỈ SỐ ==================
-
 def add_indices(img):
     ndvi = img.normalizedDifference(["NIR","RED"]).rename("NDVI")
     ndbi = img.normalizedDifference(["SWIR1","NIR"]).rename("NDBI")
@@ -158,9 +112,7 @@ def get_urban(img, roi, params=PRESET_MEM, ui_threshold_fixed=None):
     return urban_final, ui_thr
 
 # ================== FIX TIẾNG VIỆT ==================
-
 VIET_CHARS = "ĂÂÊÔƠƯăâêôơưĐđáàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ"
-
 def _fix_mojibake_utf8(s):
     if not isinstance(s, str):
         return s
@@ -201,7 +153,7 @@ def load_shapefile():
     sample = str(gdf[name_field].iloc[0])
     if any(x in sample for x in ["Ã","Â","ê°","àº","»"]):
         gdf[name_field] = gdf[name_field].apply(_fix_mojibake_utf8)
-    gdf[name_field] = gdf[name_field].apply(lambda s: unicodedata.normalize("NFC", s) if isinstance(s, str) else s)
+        gdf[name_field] = gdf[name_field].apply(lambda s: unicodedata.normalize("NFC", s) if isinstance(s, str) else s)
     return gdf, name_field
 
 def clean_geometry(geom):
@@ -209,7 +161,6 @@ def clean_geometry(geom):
     return ee_geom.buffer(50).buffer(-50)
 
 # ================== GIAO DIỆN ==================
-
 st.set_page_config(page_title="Đô thị hoá TP.HCM", layout="wide")
 st.title("Công cụ đánh giá đô thị hoá TP.HCM")
 
@@ -230,16 +181,13 @@ roi = ee.Geometry(geom)
 roi_simple = clean_geometry(roi).simplify(100)
 roi_geojson = roi_simple.getInfo()
 
-# ================== CHỌN NĂM ==================
-
+# Chọn năm
 years = list(range(2019, 2026))
 col1, col2 = st.columns(2)
 with col1:
     year1 = st.selectbox("🕒 Chọn năm 1:", years, index=2)
 with col2:
     year2 = st.selectbox("🕒 Chọn năm 2:", years, index=5)
-
-# ================== PHÂN TÍCH ==================
 
 if st.button("🚀 Bắt đầu phân tích", use_container_width=True):
     results_all = {}
@@ -281,7 +229,7 @@ if st.button("🚀 Bắt đầu phân tích", use_container_width=True):
 
         urban_area_val = urban_area_dict.get("area").getInfo() if urban_area_dict.get("area") else 0.0
         total_area_val = total_area_dict.get("area").getInfo() if total_area_dict.get("area") else 0.0
-        mean_stats_val = {k: float(v) if v is not None else 0.0 for k, v in mean_stats_dict.getInfo().items()}
+        mean_stats_val = {k: float(v) if v is not None else 0.0 for k,v in mean_stats_dict.getInfo().items()}
 
         results_all[year] = {
             "urban_area": float(urban_area_val),
@@ -291,7 +239,6 @@ if st.button("🚀 Bắt đầu phân tích", use_container_width=True):
             "urban": urban,
         }
 
-    # ================== HIỂN THỊ ==================
     st.subheader("📊 Kết quả đô thị hoá TP.HCM")
     cols_res = st.columns(2)
     mean_stats_year1 = results_all[year1]["mean_stats"]
@@ -334,13 +281,12 @@ if st.button("🚀 Bắt đầu phân tích", use_container_width=True):
             m = foliumap.Map(height=500)
             m.add_basemap("HYBRID")
             m.centerObject(roi_simple, 8)
-            m.addLayer(res["urban"].updateMask(res["urban"]), {"palette": ["#ff0000"]}, "Khu đô thị")
-            m.addLayer(res["img"].select("NDVI"), {"min": 0, "max": 1, "palette": ["#FFFFFF", "#befac0", "#54bf59", "#3cbe42", "#0f9d18"]}, "NDVI")
-            m.addLayer(res["img"].select("NDBI"), {"min": -0.3, "max": 0.4, "palette": ["#FFFFFF", "#DFB68C", "#834729", "#793C14", "#683008"]}, "NDBI")
-            m.addLayer(res["img"].select("MNDWI"), {"min": -0.5, "max": 0.5, "palette": ["#FFFFFF", "#a7d9f4", "#4596d0", "#286eb5", "#08306b"]}, "MNDWI")
-            m.addLayer(res["img"].select("UI"), {"min": -0.5, "max": 0.5, "palette": ["#FFFFFF", "#ec5b5b", "#c63030", "#851e1a", "#680004"]}, "UI")
+            m.addLayer(res["urban"].updateMask(res["urban"]), {"palette":["#ff0000"]}, "Khu đô thị")
+            m.addLayer(res["img"].select("NDVI"), {"min":0,"max":1,"palette":["#FFFFFF","#befac0","#54bf59","#3cbe42","#0f9d18"]}, "NDVI")
+            m.addLayer(res["img"].select("NDBI"), {"min":-0.3,"max":0.4,"palette":["#FFFFFF","#DFB68C","#834729","#793C14","#683008"]}, "NDBI")
+            m.addLayer(res["img"].select("MNDWI"), {"min":-0.5,"max":0.5,"palette":["#FFFFFF","#a7d9f4","#4596d0","#286eb5","#08306b"]}, "MNDWI")
+            m.addLayer(res["img"].select("UI"), {"min":-0.5,"max":0.5,"palette":["#FFFFFF","#ec5b5b","#c63030","#851e1a","#680004"]}, "UI")
             roi_fc = ee.FeatureCollection(roi_simple).style(color="white", fillColor="00000000", width=2)
             m.addLayer(roi_fc, {}, "Ranh giới")
             m.addLayerControl()
             m.to_streamlit()
-
