@@ -1,7 +1,8 @@
 streamlit
+geopandas
+fiona
+shapely
+pyproj
 geemap
 earthengine-api
-geopandas
-pandas
-shapely
-folium
+google-auth
