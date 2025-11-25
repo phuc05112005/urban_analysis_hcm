@@ -16,15 +16,48 @@ import json
 
 # ================== CẤU HÌNH ==================
 
+# ================== CẤU HÌNH ==================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SHP_ZIP = os.path.join(BASE_DIR, "vn_shp.zip")  # file zip shapefile
-SHP_DIR = os.path.join(BASE_DIR, "vn_shp")     # thư mục giải nén
+# giả sử bạn vẫn giữ tại root của repo
+SHP_URL = "https://raw.githubusercontent.com/phuc05112005/urban_analysis_hcm/main/vn_shp/vn.shp"
 
-# Giải nén shapefile nếu chưa có
-if not os.path.exists(SHP_DIR):
-    os.makedirs(SHP_DIR, exist_ok=True)
-    with zipfile.ZipFile(SHP_ZIP, "r") as zip_ref:
-        zip_ref.extractall(SHP_DIR)
+@st.cache_data(show_spinner=False)
+def load_shapefile():
+    # tải trực tiếp file .shp từ GitHub
+    import requests
+    from io import BytesIO
+    url = SHP_URL
+    resp = requests.get(url)
+    if resp.status_code != 200:
+        raise FileNotFoundError(f"Không tải được shapefile từ {url}")
+    # ghi tạm vào file
+    temp_dir = tempfile.mkdtemp()
+    shp_path = os.path.join(temp_dir, "vn.shp")
+    with open(shp_path, "wb") as f:
+        f.write(resp.content)
+    gdf = gpd.read_file(shp_path)
+    if gdf.crs is None:
+        gdf.set_crs(epsg=4326, inplace=True)
+    else:
+        gdf = gdf.to_crs(4326)
+    # phần còn lại giữ như cũ:
+    cols_lower = [c.lower() for c in gdf.columns]
+    preferred = ["name","ten_tinh","tinh","ten","province"]
+    name_field = None
+    for k in preferred:
+        if k in cols_lower:
+            name_field = gdf.columns[cols_lower.index(k)]
+            break
+    if not name_field:
+        text_cols = [c for c in gdf.columns if gdf[c].dtype == object]
+        if not text_cols:
+            raise ValueError("Không tìm thấy trường tên trong shapefile")
+        name_field = text_cols[0]
+    sample = str(gdf[name_field].iloc[0])
+    if any(x in sample for x in ["Ã","Â","ê°","àº","»"]):
+        gdf[name_field] = gdf[name_field].apply(_fix_mojibake_utf8)
+    gdf[name_field] = gdf[name_field].apply(lambda s: unicodedata.normalize("NFC", s) if isinstance(s, str) else s)
+    return gdf, name_field
 
 # ================== GOOGLE EARTH ENGINE ==================
 
@@ -310,3 +343,4 @@ if st.button("🚀 Bắt đầu phân tích", use_container_width=True):
             m.addLayer(roi_fc, {}, "Ranh giới")
             m.addLayerControl()
             m.to_streamlit()
+
